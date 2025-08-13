@@ -1,12 +1,8 @@
 import streamlit as st
 import time
 import random
-import numpy as np
-import pandas as pd
-import joblib
-from collections import defaultdict
 
-# Custom CSS for styling
+# CSS Styles with animations
 st.markdown("""
 <style>
     :root {
@@ -17,114 +13,100 @@ st.markdown("""
         --dark: #343a40;
     }
 
-    .test-container {
-        background-color: var(--light);
-        border-radius: 10px;
-        padding: 2rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    @keyframes pulse {
+        0% { box-shadow: 0 0 5px var(--primary); }
+        50% { box-shadow: 0 0 20px var(--primary); }
+        100% { box-shadow: 0 0 5px var(--primary); }
+    }
+
+    .card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        animation: fadeIn 0.5s ease-in-out;
+        margin-bottom: 1rem;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     .sentence-display {
         font-family: 'Courier New', monospace;
         font-size: 1.3rem;
         line-height: 2rem;
-        background-color: white;
+        background-color: #f8f9fa;
         padding: 1.5rem;
         border-radius: 8px;
         border: 1px solid #dee2e6;
-        margin: 1rem 0;
         white-space: pre-wrap;
-    }
-
-    .timer-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin: 1.5rem 0;
+        box-shadow: inset 0 0 8px rgba(0,0,0,0.05);
+        margin: 1rem 0;
+        min-height: 120px;
     }
 
     .timer {
         font-size: 2.5rem;
         font-weight: bold;
-        color: var(--primary);
         padding: 0.5rem 1.5rem;
-        background: white;
         border-radius: 50px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        background: white;
+        text-align: center;
+        animation: pulse 1.5s infinite;
+        margin: 1rem auto;
+        width: fit-content;
     }
-
-    .timer.warning {
-        color: #ffc107;
+    .timer.warning { color: #ffc107; animation: pulse 0.8s infinite; }
+    .timer.danger { color: var(--danger); animation: pulse 0.4s infinite; }
+    .correct { color: var(--success); font-weight: bold; }
+    .incorrect { color: var(--danger); text-decoration: underline; font-weight: bold; }
+    .next-char { 
+        background-color: rgba(74, 107, 255, 0.2); 
+        border-radius: 4px; 
+        padding: 0 2px;
+        font-weight: bold;
     }
-
-    .timer.danger {
-        color: var(--danger);
+    .cursor { 
+        border-left: 2px solid var(--primary);
+        animation: blink 1s step-end infinite;
     }
-
-    .result-card {
-        background-color: white;
-        border-radius: 12px;
-        padding: 1.5rem;
+    @keyframes blink {
+        from, to { border-color: transparent }
+        50% { border-color: var(--primary); }
+    }
+    .typing-input {
+        font-size: 1.2rem;
+        padding: 0.8rem;
+    }
+    .stats {
+        display: flex;
+        justify-content: space-between;
         margin: 1rem 0;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        border-left: 5px solid var(--primary);
     }
-
-    .metric-value {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: var(--primary);
-        margin: 0.5rem 0;
-    }
-
-    .progress-container {
-        height: 12px;
-        background-color: #e9ecef;
-        border-radius: 6px;
-        margin: 1.5rem 0;
-        overflow: hidden;
-    }
-
-    .progress-bar {
-        height: 100%;
-        border-radius: 6px;
-        background-color: var(--success);
-    }
-
-    .correct {
-        color: var(--success);
-        font-weight: bold;
-    }
-
-    .incorrect {
-        color: var(--danger);
-        text-decoration: underline;
-        font-weight: bold;
-    }
-
-    .current-word {
-        background-color: rgba(74, 107, 255, 0.2);
-        padding: 0 4px;
-        border-radius: 4px;
-    }
-
-    .btn-primary {
-        background-color: var(--primary) !important;
-        border: none !important;
-        padding: 0.8rem 2rem !important;
-        font-size: 1.1rem !important;
+    .stat-box {
+        background: white;
+        padding: 1rem;
+        border-radius: 10px;
+        text-align: center;
+        flex: 1;
+        margin: 0 0.5rem;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Sample paragraphs for typing test
+# Sample paragraphs
 paragraphs = [
-    "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.",
-    "How vexingly quick daft zebras jump! Bright vixens jump; dozy fowl quack.",
-    "Sphinx of black quartz, judge my vow. The five boxing wizards jump quickly.",
+    "The quick brown fox jumps over the lazy dog.",
     "Programming is the process of creating instructions that tell a computer how to perform tasks.",
-    "Typing quickly and accurately is an essential skill in today's digital world of computers."
+    "Typing quickly and accurately is an essential skill in today's digital world.",
+    "To be or not to be, that is the question. Whether 'tis nobler in the mind to suffer the slings and arrows of outrageous fortune.",
+    "The five boxing wizards jump quickly. Pack my box with five dozen liquor jugs. How vexingly quick daft zebras jump!",
+    "Artificial intelligence will transform every industry in ways we can't yet imagine. The future belongs to those who can adapt.",
+    "Streamlit is an open-source app framework that turns data scripts into shareable web apps in minutes. It's pure Python magic!",
+    "The journey of a thousand miles begins with a single step. Persistence and practice are the keys to mastering any skill."
 ]
 
 # Initialize session state
@@ -134,21 +116,6 @@ if 'test' not in st.session_state:
         'completed': False,
         'paragraph': "",
         'start_time': None,
-        'end_time': None,
-        'typed_text': "",
-        'timer': 60,
-        'last_update': time.time()
-    }
-
-
-# Function to start new test
-def start_test():
-    st.session_state.test = {
-        'started': True,
-        'completed': False,
-        'paragraph': random.choice(paragraphs),
-        'start_time': time.time(),
-        'end_time': None,
         'typed_text': "",
         'timer': 60,
         'last_update': time.time()
@@ -156,216 +123,144 @@ def start_test():
     st.session_state.user_input = ""
 
 
-# Function to handle typing and timer
+def start_test():
+    st.session_state.test.update({
+        'started': True,
+        'completed': False,
+        'paragraph': random.choice(paragraphs),
+        'start_time': time.time(),
+        'typed_text': "",
+        'timer': 60,
+        'last_update': time.time()
+    })
+    st.session_state.user_input = ""
+    # Force a rerun to start the test
+    st.rerun()
+
+
 def update_test():
     if not st.session_state.test['started'] or st.session_state.test['completed']:
         return
 
-    # Update typed text
+    # Update typed text with current input value
     st.session_state.test['typed_text'] = st.session_state.user_input
+    st.session_state.test['last_update'] = time.time()
 
-    # Update timer
-    current_time = time.time()
-    elapsed = current_time - st.session_state.test['start_time']
-    remaining = max(0, 60 - elapsed)
-    st.session_state.test['timer'] = remaining
-    st.session_state.test['last_update'] = current_time
-
-    # Check if time is up
-    if remaining <= 0:
+    # End test if full text is typed
+    if len(st.session_state.user_input) >= len(st.session_state.test['paragraph']):
         st.session_state.test['completed'] = True
-        st.session_state.test['end_time'] = current_time
+        st.rerun()
 
 
-# Function to calculate results
 def calculate_results():
-    test = st.session_state.test
-    if not test['completed']:
-        return None
+    typed = st.session_state.test['typed_text']
+    para = st.session_state.test['paragraph']
 
-    typed_text = test['typed_text']
-    paragraph = test['paragraph']
+    correct_chars = 0
+    if typed:
+        for i in range(min(len(typed), len(para))):
+            if typed[i] == para[i]:
+                correct_chars += 1
 
-    # Calculate correct characters and errors
-    correct = 0
-    errors = defaultdict(int)
-    for i in range(min(len(typed_text), len(paragraph))):
-        if typed_text[i] == paragraph[i]:
-            correct += 1
-        else:
-            errors[paragraph[i]] += 1
-
-    # Calculate WPM (5 characters = 1 word)
-    wpm = (correct / 5) / (60 / 60)  # Words per minute
-
-    # Calculate accuracy
-    accuracy = (correct / len(typed_text)) * 100 if len(typed_text) > 0 else 0
-
-    # Calculate words typed
-    typed_words = len(typed_text.split())
-    total_words = len(paragraph.split())
-
+    elapsed = time.time() - st.session_state.test['start_time']
+    minutes = max(elapsed / 60, 0.0166667)
+    wpm = (correct_chars / 5) / minutes
+    accuracy = (correct_chars / len(typed)) * 100 if typed else 0
     return {
         'wpm': wpm,
         'accuracy': accuracy,
-        'correct_chars': correct,
-        'total_chars': len(typed_text),
-        'errors': dict(errors),
-        'typed_words': typed_words,
-        'total_words': total_words,
-        'paragraph': paragraph,
-        'typed_text': typed_text
+        'correct': correct_chars,
+        'total': len(typed),
+        'time': elapsed
     }
 
 
-# Main app layout
-st.title("⌨️ Typing Speed Test (1 Minute)")
-st.markdown("Test your typing speed and accuracy with this 1-minute timed test.")
+# Main app
+st.title("⌨️ Typing Speed Test")
+st.caption("Test your typing speed and accuracy in a 1-minute challenge")
 
-# Test container
-with st.container():
-    st.markdown('<div class="test-container">', unsafe_allow_html=True)
-
-    if not st.session_state.test['started']:
-        st.button("Start 1-Minute Test", on_click=start_test, key="start_btn")
-    else:
-        # Update test state
-        update_test()
-
-        # Timer display
-        timer_class = ""
-        if st.session_state.test['timer'] < 15:
-            timer_class = "warning"
-        if st.session_state.test['timer'] < 5:
-            timer_class = "danger"
-
-        st.markdown(
-            f'<div class="timer-container">'
-            f'<div class="timer {timer_class}">{int(st.session_state.test["timer"])} seconds</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-        # Paragraph display with character highlighting
-        if st.session_state.test['completed']:
-            results = calculate_results()
-            paragraph = results['paragraph']
-            typed_text = results['typed_text']
-
-            display_text = []
-            for i, char in enumerate(paragraph):
-                if i < len(typed_text):
-                    if char == typed_text[i]:
-                        display_text.append(f'<span class="correct">{char}</span>')
-                    else:
-                        display_text.append(f'<span class="incorrect">{char}</span>')
-                else:
-                    display_text.append(char)
-
-            st.markdown(
-                f'<div class="sentence-display">{"".join(display_text)}</div>',
-                unsafe_allow_html=True
-            )
-        else:
-            # Highlight current word during typing
-            paragraph = st.session_state.test['paragraph']
-            typed_words = st.session_state.test['typed_text'].split()
-            current_word_index = len(typed_words)
-            words = paragraph.split()
-
-            display_text = []
-            if current_word_index < len(words):
-                current_word = words[current_word_index]
-                word_start = paragraph.find(current_word)
-
-                for i, char in enumerate(paragraph):
-                    if word_start <= i < word_start + len(current_word):
-                        display_text.append(f'<span class="current-word">{char}</span>')
-                    else:
-                        display_text.append(char)
-            else:
-                display_text = list(paragraph)
-
-            st.markdown(
-                f'<div class="sentence-display">{"".join(display_text)}</div>',
-                unsafe_allow_html=True
-            )
-
-        # Typing input
-        st.text_input(
-            "Type the text above:",
-            key="user_input",
-            on_change=update_test,
-            disabled=st.session_state.test['completed'],
-            label_visibility="collapsed"
-        )
-
-        if st.session_state.test['completed']:
-            st.button("Show Results", key="show_results_btn")
-
+if not st.session_state.test['started']:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.subheader("Instructions")
+    st.write("1. Click Start Test to begin")
+    st.write("2. Type the displayed text as quickly and accurately as possible")
+    st.write("3. The test will automatically end after 1 minute or when you complete the text")
+    st.write("4. Your results will be displayed with WPM and accuracy metrics")
+    st.button("🚀 Start Test", on_click=start_test, type="primary", use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
+else:
+    # Calculate remaining time
+    elapsed = time.time() - st.session_state.test['start_time']
+    remaining = max(0, 60 - elapsed)
+    st.session_state.test['timer'] = remaining
 
-# Results display
-if st.session_state.test['completed'] and st.session_state.get('show_results_btn', False):
-    results = calculate_results()
+    # End test if time is up
+    if remaining <= 0:
+        st.session_state.test['completed'] = True
+        st.rerun()
 
-    with st.container():
-        st.markdown("## Your Results")
+    # Timer display
+    tclass = "danger" if remaining < 5 else "warning" if remaining < 15 else ""
+    st.markdown(f'<div class="timer {tclass}">{int(remaining)} seconds</div>', unsafe_allow_html=True)
 
-        # WPM and Accuracy cards
+    # Real-time stats
+    if st.session_state.test['typed_text']:
+        results = calculate_results()
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown(f'<div class="stat-box">📊 <strong>WPM</strong><br>{results["wpm"]:.1f}</div>',
+                        unsafe_allow_html=True)
+        with col2:
+            st.markdown(f'<div class="stat-box">🎯 <strong>Accuracy</strong><br>{results["accuracy"]:.1f}%</div>',
+                        unsafe_allow_html=True)
+        with col3:
+            st.markdown(
+                f'<div class="stat-box">✅ <strong>Correct</strong><br>{results["correct"]}/{results["total"]}</div>',
+                unsafe_allow_html=True)
+
+    # Paragraph display with highlights
+    typed_text = st.session_state.test['typed_text']
+    para = st.session_state.test['paragraph']
+    display_chars = []
+
+    for i, ch in enumerate(para):
+        if i < len(typed_text):
+            display_chars.append(f'<span class="{"correct" if typed_text[i] == ch else "incorrect"}">{ch}</span>')
+        elif i == len(typed_text):
+            display_chars.append(f'<span class="next-char"><span class="cursor">{ch}</span></span>')
+        else:
+            display_chars.append(ch)
+
+    st.markdown(f'<div class="sentence-display">{"".join(display_chars)}</div>', unsafe_allow_html=True)
+
+    # Typing input - now only created once per render
+    st.text_input("Type here (don't look at your keyboard!):",
+                  key="user_input",
+                  on_change=update_test,
+                  disabled=st.session_state.test['completed'],
+                  label_visibility="collapsed",
+                  placeholder="Start typing here...")
+
+    # Show results when completed
+    if st.session_state.test['completed']:
+        results = calculate_results()
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.subheader("📊 Final Results")
+
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown(
-                '<div class="result-card">'
-                '<h3>Typing Speed</h3>'
-                f'<div class="metric-value">{results["wpm"]:.1f}</div>'
-                '<p>words per minute</p>'
-                '</div>',
-                unsafe_allow_html=True
-            )
-
+            st.metric("Words Per Minute", f"{results['wpm']:.1f}")
+            st.metric("Time Taken", f"{results['time']:.1f} seconds")
         with col2:
-            st.markdown(
-                '<div class="result-card">'
-                '<h3>Accuracy</h3>'
-                f'<div class="metric-value">{results["accuracy"]:.1f}%</div>'
-                '<p>character accuracy</p>'
-                '</div>',
-                unsafe_allow_html=True
-            )
+            st.metric("Accuracy", f"{results['accuracy']:.1f}%")
+            st.metric("Correct Characters", f"{results['correct']}/{results['total']}")
 
-        # Progress bars
-        st.markdown("### Progress")
-        st.markdown(f"Words typed: {results['typed_words']}/{results['total_words']}")
-        st.markdown(
-            '<div class="progress-container">'
-            f'<div class="progress-bar" style="width: {results["typed_words"] / results["total_words"] * 100}%"></div>'
-            '</div>',
-            unsafe_allow_html=True
-        )
+        st.progress(results['accuracy'] / 100, text="Accuracy Progress")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown(f"Correct characters: {results['correct_chars']}/{results['total_chars']}")
-        st.markdown(
-            '<div class="progress-container">'
-            f'<div class="progress-bar" style="width: {results["correct_chars"] / results["total_chars"] * 100 if results["total_chars"] > 0 else 0}%"></div>'
-            '</div>',
-            unsafe_allow_html=True
-        )
+        st.button("🔄 Restart Test", on_click=start_test, type="primary", use_container_width=True)
 
-        # Error analysis
-        if results['errors']:
-            st.markdown("### Error Analysis")
-            st.markdown("Most frequent mistakes:")
-            for char, count in sorted(results['errors'].items(), key=lambda x: x[1], reverse=True)[:5]:
-                st.markdown(f"- '{char}': {count} errors")
-
-        st.button("Take Another Test", on_click=start_test, key="restart_btn")
-
-# Footer
-st.markdown("---")
-st.markdown(
-    '<div style="text-align: center; color: #6c757d; font-size: 0.9rem;">'
-    'Typing Speed Test • 1 Minute Challenge • Refresh to reset'
-    '</div>',
-    unsafe_allow_html=True
-)
+    # Auto-rerun to update the display while test is running
+    if not st.session_state.test['completed']:
+        time.sleep(0.1)
+        st.rerun()
